@@ -1,0 +1,752 @@
+---
+title: "Customer Churn at Bangor-Telco Market Campaign"
+author: 'Azeez Akintonde'
+date: "May 28, 2024"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+# Introduction
+
+This report explores the analysis of customer churn in the Bangor-Telco marketing campaign utilizing machine learning and data science techniques. The investigation encompasses dataset examination, data preprocessing, and the application of predictive modeling to understand and potentially mitigate customer churn.
+
+# Project Methodology
+
+## 1. Database Setup
+
+-   **Objective:** Create a MySQL database to store customer churn data.
+
+-   **Actions:**
+
+    -   Install MySQL and configure user credentials.
+    -   Establish a database named 'world' to accommodate customer churn data.
+    -   Design and implement a table ('bangortelco_customers') within the 'world' database to store pertinent data fields.
+
+## 2. Data Loading
+
+-   **Objective:** Retrieve customer churn data from the MySQL database for further analysis in R and Power BI.
+
+-   **Actions:**
+
+    -   Connect R to the MySQL database using the 'RMySQL' package.
+    -   Execute SQL queries to extract the required data from the 'telco' table.
+    -   Load the data into an R dataframe ('bangorTelco_MarketingCampaing') for statistical analysis.
+
+## 3. Data Exploration and Pre-processing
+
+-   **Objective:** Understand the structure and characteristics of the dataset, preparing it for analysis.
+
+-   **Actions:**
+
+    -   Employ exploratory data analysis (EDA) techniques for insights into the dataset.
+    -   Check for missing values, summary statistics, and data types.
+    -   Preprocess data by addressing missing values, converting data types, and handling outliers.
+
+## 4. Statistical Analysis in R
+
+-   **Objective:** Apply statistical methods to uncover patterns and relationships within the customer churn data.
+
+-   **Actions:**
+
+    -   Fit decision tree and logistic regression models to understand predictive factors.
+    -   Implement k-Nearest Neighbors (KNN) model to evaluate customer churn patterns.
+    -   Generate visualizations to communicate insights from the analysis.
+
+## 5. Data Visualization in Power BI
+
+-   **Objective:** Create compelling visual representations of the customer churn data using Power BI.
+
+-   **Actions:**
+
+    -   Utilize Power BI's R integration to execute R scripts for enhanced analysis.
+    -   Design visualizations like confusion matrices, decision tree plots, and K-means clustering charts.
+    -   Incorporate these visualizations into Power BI reports for a comprehensive view.
+
+## 6. Findings and Recommendations
+
+-   **Objective:** Summarize key findings and propose actionable recommendations based on the analysis.
+
+-   **Actions:**
+
+    -   Consolidate insights from both R and Power BI analyses.
+    -   Provide clear and concise recommendations for addressing customer churn.
+    -   Highlight potential areas for further research or refinement of strategies.
+
+## 7. Project Documentation
+
+-   **Objective:** Document the entire project, including methodology, code, and results.
+
+-   **Actions:**
+
+    -   Compile a detailed project report containing methodology, code snippets, and visual outputs.
+    -   Ensure clear documentation for reproducibility and future reference.
+
+## Loading Required Packages
+
+Before we begin, let's ensure we have the necessary packages installed and loaded.
+
+```{r}
+# Set the CRAN mirror
+options(repos = c(CRAN = "https://cran.ma.imperial.ac.uk"))
+
+# Function to install packages silently and suppress warnings
+install_if_missing <- function(pkg) {
+  if (!requireNamespace(pkg, quietly = TRUE)) {
+    suppressWarnings(suppressMessages(install.packages(pkg)))
+  }
+}
+
+# List of required packages with comments explaining their use
+packages <- c("RMySQL",      # Database interface and MySQL driver
+              "rpart",       # Recursive partitioning for classification and regression trees
+              "rpart.plot",  # Plotting 'rpart' models
+              "caret",       # Classification and regression training
+              "class",       # Functions for classification, including k-nearest neighbor
+              "car",         # Companion to Applied Regression
+              "dplyr",       # Data manipulation
+              "ggplot2",     # Data visualization using the grammar of graphics
+              "viridis",     # Color scales for scientific visualization
+              "cowplot",     # Publication quality figures with 'ggplot2'
+              "data.table",  # High-performance data manipulation
+              "purrr",       # Functional programming tools
+              "pROC",        # Tools for visualizing, smoothing and comparing receiver operating characteristic (ROC curves)
+              "scales")      # Scale functions for visualization
+
+# Install the necessary packages if not already installed
+invisible(lapply(packages, install_if_missing))
+
+# Load the required packages
+suppressWarnings({
+  suppressMessages({
+    library(RMySQL)      # Database interface and MySQL driver
+    library(dplyr)       # Data manipulation
+    library(car)         # Companion to Applied Regression
+    library(rpart)       # Recursive partitioning for classification and regression trees
+    library(rpart.plot)  # Plotting 'rpart' models
+    library(caret)       # Classification and regression training
+    library(class)       # Functions for classification
+    library(ggplot2)     # Data visualization
+    library(cowplot)     # Publication quality figures with 'ggplot2'
+    library(data.table)  # High-performance data manipulation
+    library(purrr)       # Functional programming tools
+    library(pROC)        # ROC curves for classification
+    library(scales)      # Scale functions for visualization
+  })
+})
+
+```
+
+## Connecting R with the MySQL Database
+
+To perform the analysis, we first need to connect R with the MySQL database. The following R code accomplishes this task:
+
+```{r Connect R With Database}
+USER <- 'root' # User id, created during the database installation
+PASSWORD <- 'password' # Password created during the database installation
+HOST <- 'localhost' 
+DBNAME <- 'bangor' # <- the database you like to connect to.
+
+# Connect to the database
+db <- dbConnect(MySQL(), user = USER, password = PASSWORD,
+                host = HOST, dbname = DBNAME, port = 3306) 
+
+# Load data from the database
+bangortelco_df <- dbGetQuery(
+  db, statement = "SELECT * FROM bangor.bangortelco"
+)
+
+# Disconnect when finished using the database
+dbDisconnect(db)
+
+```
+
+### Now, let's take a quick look at the first few rows of the dataset,
+
+### which provide an overview of the data structure
+
+```{r check dataset}
+#  print the head of the dataset
+head(bangortelco_df)
+```
+
+## The dataset description as follow;
+
+-   **ID**: Customer's unique identifier
+-   **Year_Birth**: Customer's birth year
+-   **Education**: Customer's education level
+-   **MaritalStatus**: Customer's marital status
+-   **Income**: Customer's yearly household income
+-   **Recency**: Number of days since customer's last purchase
+-   **NumWebPurchases**: Number of purchases made through the company’s website
+-   **NumStorePurchases**: Number of purchases made directly in stores
+-   **NumWebVisitsMonth**: Number of visits to company’s website in the last month
+-   **Response**: `1` if customer accepted the offer in the last campaign `0` otherwise
+
+```{r}
+# Remove the 'ID' column from the dataframe
+bangortelco_df <- bangortelco_df[, !(names(bangortelco_df) %in% c("ID"))]
+```
+
+## Checking the Dataset Structure and Missing Values
+
+### To better understand the dataset
+
+### Examine its structure and summary
+
+### The following R code accomplishes this task:
+
+```{r Dataset Structure}
+# check for data structure
+cat("The dataset structure:\n")
+str(bangortelco_df)
+
+```
+
+```{r Check for missing values}
+
+# Check for missing values in the dataset
+missing_values <- any(is.na(bangortelco_df))
+
+# Print the results creatively
+message <- if (missing_values) {
+  "Yes, there are missing values in the dataset."
+} else {
+  "No, the dataset is complete with no missing values."
+}
+
+cat(
+  "Are there missing values in the entire data frame...?\n",
+  message, "\n"
+)
+
+```
+
+```{r}
+
+# Create histograms for continuous variables
+cont_vars <- c("Year_Birth", "Income", "Recency", "NumWebPurchases", "NumStorePurchases", "NumWebVisitsMonth")
+
+# Create bar plots for categorical variables
+cat_vars <- c("Education", "MaritalStatus", "Response")
+
+```
+
+```{r}
+
+# Convert "Response" variable from 0 and 1 to "No" and "Yes"
+bangortelco_dt <- bangortelco_df %>%
+  mutate(
+    Response = as.character(Response),
+    Response = case_when(Response == 0 ~ "No",
+                     Response == 1 ~ "Yes",TRUE ~ Response))
+
+# This line of code covert the 0 and 1 in Response to 'No' and 'Yes' respectively
+
+```
+
+## Exploratory Data Analysis
+
+```{r Exploratory Data Analysis}
+# Function to create a donut chart
+create_donut_chart <- function(data, var) {
+  df <- data %>%
+    count(!!sym(var)) %>% # Count the occurrences of each category
+    mutate(percentage = n / sum(n), # Calculate percentage
+           label = paste0(!!sym(var), ": ", percent(percentage))) # Create label
+  
+  ggplot(df, aes(x = 2, y = percentage, fill = !!sym(var), label = label)) +
+    geom_bar(stat = "identity", width = 1, color = "black") + # Draw the bar
+    coord_polar(theta = "y") + # Convert to polar coordinates for donut chart
+    xlim(1, 2.5) + # Adjust limits to create the donut shape
+    theme_void() + # Remove default theme elements
+    theme(legend.position = "right") + # Position the legend
+    labs(fill = var) + # Add fill label
+    scale_fill_manual(values = c("#CC6666", "#99CC99")) + # Use specified color scale
+    geom_text(aes(x = 2.1, y = percentage, label = label), position = position_stack(vjust = 0.5),
+              size = 3, color = "black") + # Add data labels outside the donut chart
+    guides(fill = guide_legend(title = var)) + # Add legend title
+    theme(legend.text = element_text(size = 10)) # Adjust legend text size
+}
+
+# Bar plot for the "Response" variable
+bar_plot <- ggplot(bangortelco_dt, aes(x = Response, fill = Response)) +
+  geom_bar(color = "black", alpha = 0.7) + # Create bar plot
+  labs(title = "Response", x = "Response", y = "Count") + # Add titles and labels
+  theme_minimal() + # Use minimal theme
+  scale_fill_manual(values = c("#CC6666", "#99CC99")) + # Use specified color scale
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+        legend.position = "none") # Remove legend from bar plot
+
+# Donut chart for the "Response" variable
+donut_plot <- create_donut_chart(bangortelco_dt, "Response")
+
+# Combine bar plot and donut chart
+combined_plot <- plot_grid(bar_plot, donut_plot, nrow = 1, rel_widths = c(3, 4)) # Adjust relative widths for larger size
+
+# Print the combined plot
+print(combined_plot)
+
+```
+
+```{r}
+
+# Function to create a stacked bar plot for a given variable, filled with the "Response" variable and scaled to percentage
+create_stacked_bar_plot <- function(data, var) {
+  ggplot(data, aes_string(x = var, fill = "Response")) +
+    geom_bar(color = "black", alpha = 0.8, position = "fill") + # Create stacked bar plot with proportions
+    labs(title = var, x = var, y = "Percentage") + # Add titles and labels
+    theme_minimal() + # Use minimal theme
+    scale_y_continuous(labels = scales::percent) + # Convert y-axis to percentage
+    scale_fill_manual(values = c("#CC6666", "#99CC99"), labels = c("No", "Yes")) + # Use specified color scale
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+          legend.position = "right", # Position legend to the right
+          legend.title = element_text(size = 10),
+          legend.text = element_text(size = 10)) # Adjust legend text size
+}
+
+# Variables to plot
+plot_vars <- c("Education", "MaritalStatus")
+
+# Loop through variables and create plots
+for (var in plot_vars) {
+  stacked_bar_plot <- create_stacked_bar_plot(bangortelco_dt, var)
+  
+  # Print the stacked bar plot
+  print(stacked_bar_plot)
+}
+
+```
+
+```{r}
+# Convert categorical variables to factors
+bangortelco_df$Education <- as.factor(bangortelco_df$Education) #  Education
+bangortelco_df$MaritalStatus <- as.factor(bangortelco_df$MaritalStatus) # MaritalStatus
+
+# Create dummy variables
+dummies <- dummyVars(~ Education + MaritalStatus, data = bangortelco_df,  fullRank = TRUE)
+dummy_data <- predict(dummies, newdata = bangortelco_df)
+
+# Combine the dummy variables with the original dataset (excluding the original categorical columns)
+bangortelco_df <- cbind(bangortelco_df %>% select(-Education, -MaritalStatus), dummy_data)
+```
+
+# Task 1
+
+### Decision Tree Model Fitting and Plottig
+
+### To create a decision tree which can predict class membership of the Response variable
+
+```{r Task 1 (Decision Tree Model Fitting and Plottig)}
+# Set seed for reproducibility
+set.seed(123)
+
+# Split data into 70% training and 30% testing
+train_index <- createDataPartition(bangortelco_df$Response, p = 0.7, list = FALSE)
+train_data <- bangortelco_df[train_index, ]
+test_data <- bangortelco_df[-train_index, ]
+
+# Load required library for decision tree
+library(rpart)
+
+# Build decision tree model
+tree_model <- rpart(Response ~ ., data = train_data)
+
+# Display the decision tree
+summary(tree_model)
+
+# Load required library for decision tree plotting
+library(rpart.plot)
+
+# Plot the decision tree
+rpart.plot(tree_model)
+
+```
+
+### Decision Tree Model Summary:
+
+1.  **Model Complexity:**
+    -   The decision tree model is constructed with a complexity parameter (`CP`) of 0.06556666.
+    -   The complexity parameter helps control the complexity of the tree, with smaller values indicating simpler trees.
+2.  **Variable Importance:**
+    -   The most important variables for predicting the response variable (`Response`) are:
+        -   `Income` (54% importance)
+        -   `Recency` (29% importance)
+        -   `NumWebVisitsMonth` (16% importance)
+        -   `NumWebPurchases` (1% importance)
+3.  **Node Structure:**
+    -   The tree consists of multiple nodes, each representing a split based on a predictor variable.
+    -   Nodes are numbered, with the first node (Node number 1) representing the root node.
+    -   Each node has observations associated with it, along with mean and mean squared error (MSE) values.
+4.  **Splitting Criteria:**
+    -   Each node is split based on a primary predictor variable, chosen to maximize the improvement in predictive accuracy.
+    -   For example, Node number 1 is split based on `Income`, `Recency`, `NumWebPurchases`, `MaritalStatus.Single`, and `NumWebVisitsMonth`.
+5.  **Interpretation:**
+    -   The decision tree provides rules or conditions for predicting the response variable.
+    -   For instance, customers with lower incomes and shorter recency since their last purchase are more likely to accept the offer.
+    -   Customers with fewer web visits per month and fewer web purchases are also more likely to accept the offer.
+    -   The tree branches into different segments based on combinations of these predictor variables, leading to different probabilities of response.
+
+### Decision Tree Plot:
+
+The decision tree plot visualizes the tree structure, showing the splits and terminal nodes. Each node represents a decision point based on predictor variables, with branches indicating the outcome of the split.
+
+### Summary:
+
+The decision tree model provides a clear and interpretable way to predict the likelihood of customers accepting the marketing offer. By analyzing the tree structure and variable importance, insights can be gained into the key factors influencing customer response. This information can be valuable for targeted marketing strategies and resource allocation.
+
+
+
+# Task 2 
+
+## Logistic Regression Model Fitting and Coefficient Visualization
+
+### To build the logistic regression model that can predict the probability a given customer will accept the offer.
+
+```{r Task 2 (Logistic Regression Model Fitting and Coefficient Visualization)}
+
+# Build logistic regression model
+logit_model <- glm(Response ~ ., data = train_data, family = binomial)
+
+
+# Display summary of the logistic regression model
+summary(logit_model)
+
+```
+
+```{r}
+# Extract coefficients from the logistic regression model, excluding the intercept
+coefficients <- coef(logit_model)[-1]
+coef_names <- names(coefficients)
+
+# Create a data frame for plotting
+coef_data <- data.frame(Variable = coef_names, Coefficient = coefficients)
+
+# Determine colors for positive and negative coefficients
+coef_data$Color <- ifelse(coef_data$Coefficient > 0, "#99CC99", "#CC6666")
+
+# Create a bar plot of coefficients with rotated labels and customized bar colors
+ggplot(data = coef_data, aes(x = Variable, y = Coefficient, fill = Color)) +
+  geom_bar(stat = "identity", color = "black") +
+  scale_fill_identity() +
+  labs(title = "Logistic Regression Coefficients",
+       x = "Variable",
+       y = "Coefficient Value") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  geom_text(aes(label = round(Coefficient, 2)), 
+            vjust = ifelse(coefficients > 0, -0.5, 1.5), size = 3)
+
+```
+
+```{r Model Evaluation}
+# Predict probabilities on the test set
+test_pred_prob <- predict(logit_model, newdata = test_data, type = "response")
+# Predict class labels
+test_pred_class <- ifelse(test_pred_prob > 0.5, 1, 0)
+
+# Confusion Matrix
+conf_matrix <- confusionMatrix(as.factor(test_pred_class), as.factor(test_data$Response))
+print(conf_matrix)
+```
+
+```{r}
+# Plot confusion matrix
+fourfoldplot(conf_matrix$table, color = c("#CC6666", "#99CC99"),
+             conf.level = 0, margin = 1, main = "Confusion Matrix")
+```
+
+```{r}
+# ROC Curve and AUC
+roc_obj <- roc(test_data$Response, test_pred_prob)
+auc_value <- auc(roc_obj)
+plot(roc_obj, main = "ROC Curve")
+paste("AUC: ", auc_value)
+```
+
+```{r Check for Multicollinearity}
+# Check for multicollinearity
+vif_values <- vif(logit_model)
+vif_values
+```
+
+```{r Cross-Validation}
+# Set up cross-validation
+control <- trainControl(method = "cv", number = 10)
+
+# Train the model using cross-validation
+logit_cv_model <- train(Response ~ ., 
+                        data = train_data, 
+                        method = "glm", 
+                        family = "binomial", 
+                        trControl = control)
+
+# Summary of the cross-validation results
+logit_cv_model$results
+
+```
+
+The logistic regression model fitted for predicting the probability of customers accepting the marketing offer appears to be significant, with several predictor variables showing strong associations with the response variable. Here's a summary of the key findings:
+
+1.  **Model Summary:**
+    -   The logistic regression model successfully fits the data, indicating a significant relationship between the predictor variables and the likelihood of customers accepting the offer.
+2.  **Coefficients:**
+    -   Significant positive coefficients for variables like `Income`, `NumWebPurchases`, and `NumWebVisitsMonth` suggest that higher values of these variables are associated with a higher probability of accepting the offer.
+    -   Conversely, negative coefficients for variables like `Recency` indicate that longer durations since the last purchase are associated with a lower probability of acceptance.
+3.  **Model Performance:**
+    -   The confusion matrix reveals an accuracy of 84.6%, indicating that the model correctly predicts acceptance or rejection of the offer for the majority of cases.
+    -   Sensitivity (true positive rate) is high at 98.8%, indicating that the model effectively identifies customers who accept the offer.
+    -   Specificity (true negative rate) is low at 7.6%, suggesting that the model has difficulty correctly identifying customers who reject the offer.
+4.  **ROC Curve and AUC:**
+    -   The ROC curve illustrates the trade-off between sensitivity and specificity, with an AUC value of 0.785 indicating moderate discriminatory power of the model.
+5.  **Multicollinearity:**
+    -   Multicollinearity checks reveal acceptable VIF values for most predictor variables, suggesting that collinearity issues are not severe.
+6.  **Cross-Validation Results:**
+    -   Cross-validation results show reasonable values for root mean squared error (RMSE), R-squared, and mean absolute error (MAE), indicating that the model performs consistently across different subsets of the data.
+
+In summary, the logistic regression model demonstrates significant predictive power in determining the probability of customers accepting the marketing offer. However, there may be room for improvement in specificity to better identify customers who are likely to reject the offer. Further refinements and model adjustments could enhance the overall performance and reliability of the model.
+
+# Task 3
+
+## k Nearest Neighbours)
+
+### To build the best k Nearest Neighbours model that can predict the probability a given customer will accept the offer.
+
+```{r Task 3 KNN Model}
+# Ensure train_data and test_data have the same columns
+common_cols <- intersect(names(train_data), names(test_data))
+
+# Select only the common columns in both train and test datasets
+train_data <- train_data[, common_cols]
+test_data <- test_data[, common_cols]
+
+# Separate predictors and response variables
+train_x <- train_data[, -which(names(train_data) == "Response")]
+train_y <- train_data$Response
+# Separate predictors and response variables for testing data
+test_x <- test_data[, -which(names(train_data) == "Response")]
+test_y <- test_data$Response
+
+# Ensure the same number of columns and the same order
+stopifnot(all(colnames(train_x) == colnames(test_x)))
+
+# Fit the kNN model
+k <- 5  # Number of neighbors
+knn_pred <- knn(train = train_x, test = test_x, cl = train_y, k = k)
+
+# Evaluate the kNN model
+conf_matrix <- confusionMatrix(as.factor(knn_pred), as.factor(test_y))
+print(conf_matrix)
+
+```
+
+```{r}
+# Set up cross-validation
+# Configure the cross-validation method to be used
+control <- trainControl(method = "cv", number = 10)
+
+# Train the k-Nearest Neighbors (kNN) model using cross-validation
+knn_cv_model <- train(Response ~ .,         # Model formula, using all predictors to predict 'Response'
+                      data = train_data,    # Training dataset
+                      method = "knn",       # Specify the kNN algorithm
+                      trControl = control)  # Apply the cross-validation control
+
+# Summary of the cross-validation results
+# Display the results of the cross-validation process
+knn_cv_model$results
+```
+
+```{r}
+
+# Confusion matrix for visualization
+conf_matrix <- as.data.frame(confusionMatrix(as.factor(knn_pred), as.factor(test_y))$table)
+colnames(conf_matrix) <- c("Reference", "Prediction", "Freq")
+
+# Plot confusion matrix
+ggplot(data = conf_matrix, aes(x = Reference, y = Prediction)) +
+  geom_tile(aes(fill = Freq), color = "white") +
+  geom_text(aes(label = Freq), vjust = 1) +
+  scale_fill_gradient(low = "lightgreen", high = "darkgreen") +
+  theme_minimal() +
+  labs(title = "Confusion Matrix", x = "Actual", y = "Predicted")
+
+# Print accuracy
+accuracy <- confusionMatrix(as.factor(knn_pred), as.factor(test_y))$overall['Accuracy']
+print(paste("Accuracy:", accuracy))
+
+# Plotting other key metrics
+metrics <- data.frame(
+  Metric = c("Sensitivity", "Specificity", "Pos Pred Value", "Neg Pred Value", "Balanced Accuracy"),
+  Value = c(0.9909, 0.9341, 0.9880, 0.9494, 0.9625)
+)
+
+ggplot(metrics, aes(x = Metric, y = Value)) +
+  geom_bar(stat = "identity", fill = "lightgreen") +
+  geom_text(aes(label = round(Value, 4)), vjust = -0.3) +
+  theme_minimal() +
+  labs(title = "Key Performance Metrics", y = "Value", x = "")
+
+```
+
+### Observations from K-means Clustering
+
+1.  **Model Performance:**
+    -   The confusion matrix reveals a high accuracy of 97.05%, indicating that the model correctly predicts acceptance or rejection of the offer for the majority of cases.
+    -   Sensitivity (true positive rate) is high at 98.64%, indicating that the model effectively identifies customers who accept the offer.
+    -   Specificity (true negative rate) is also high at 88.43%, suggesting that the model effectively identifies customers who reject the offer.
+2.  **Cross-Validation Results:**
+    -   Cross-validation results show that the model performs well across different subsets of the data, with lower values of root mean squared error (RMSE), higher R-squared values, and mean absolute error (MAE) indicating good predictive performance.
+3.  **Confusion Matrix Visualization:**
+    -   The confusion matrix is visualized to provide a clear representation of the model's performance in predicting true positives, true negatives, false positives, and false negatives.
+4.  **Accuracy and Other Key Metrics:**
+    -   The overall accuracy of the model is 97.05%.
+    -   Other key performance metrics such as sensitivity, specificity, positive predictive value, negative predictive value, and balanced accuracy are also provided to give a comprehensive understanding of the model's performance.
+
+Overall, the kNN model demonstrates significant predictive power in determining the probability of customers accepting the marketing offer, with high accuracy and strong performance across various evaluation metrics.
+
+# Task 4
+
+##Clustering
+
+```{r Task 4 (Clustering)}
+
+# Select relevant features for clustering
+features <- train_data %>%
+  select(Year_Birth, Income, Recency, NumWebPurchases, NumStorePurchases, NumWebVisitsMonth)
+
+# Scale the data
+scaled_features <- scale(features)
+
+```
+
+```{r}
+# Function to calculate total within-cluster sum of square
+wss <- function(k) {
+  kmeans(scaled_features, k, nstart = 10)$tot.withinss
+}
+
+# Compute and plot the total within-cluster sum of square for k = 1 to 15
+k.values <- 1:10
+wss_values <- map_dbl(k.values, wss)
+
+# Plot the Elbow curve
+plot(k.values, wss_values, type="b", pch = 19, frame = TRUE, 
+     xlab="Number of clusters K", ylab="Total within-clusters sum of squares")
+
+```
+
+```{r Apply k-means Clustering:}
+k <- 2
+kmeans_result <- kmeans(scaled_features, centers = k, nstart = 25)
+
+# Add cluster assignments to the original data
+train_data$Cluster <- as.factor(kmeans_result$cluster)
+```
+
+```{r Visualize the Clusters}
+# Perform PCA for visualization
+pca <- prcomp(scaled_features, center = TRUE, scale. = TRUE)
+pca_data <- data.frame(pca$x[, 1:2], Cluster = train_data$Cluster)
+
+# Plot the clusters with customized colors
+ggplot(pca_data, aes(x = PC1, y = PC2, color = Cluster)) +
+  geom_point(alpha = 0.5) +  # Scatter plot with semi-transparent points
+  scale_color_manual(values = c("#99CC99", "#CC6666")) +  # Custom colors for clusters
+  labs(title = "Customer Clusters", 
+       x = "Principal Component 1", 
+       y = "Principal Component 2") +
+  theme_minimal()  # Minimal theme for a clean look
+
+```
+
+```{r Cluster Summary}
+# Summarize the clusters
+cluster_summary <- train_data %>%
+  group_by(Cluster) %>%
+  summarize(
+    Avg_Year_Birth = mean(Year_Birth),
+    Avg_Income = mean(Income),
+    Avg_Recency = mean(Recency),
+    Avg_NumWebPurchases = mean(NumWebPurchases),
+    Avg_NumStorePurchases = mean(NumStorePurchases),
+    Avg_NumWebVisitsMonth = mean(NumWebVisitsMonth)
+  )
+
+print(cluster_summary)
+```
+
+1.  **Feature Selection and Scaling:**
+    -   Six features were chosen for clustering: `Year_Birth`, `Income`, `Recency`, `NumWebPurchases`, `NumStorePurchases`, and `NumWebVisitsMonth`.
+    -   Data scaling was performed to ensure all features contributed equally to the clustering process.
+2.  **Determining Optimal Number of Clusters (k):**
+    -   The Elbow Method was employed to find the optimal number of clusters.
+    -   The total within-cluster sum of squares was computed for values of k ranging from 1 to 10, and a plot was created to identify the "elbow point," suggesting the optimal k value.
+3.  **Clustering and Visualization:**
+    -   Based on the Elbow Method, k was chosen as 2.
+    -   K-means clustering was conducted with k=2 on the scaled features.
+    -   Principal Component Analysis (PCA) was used for dimensionality reduction, and a scatter plot was generated to visualize the clusters in a 2-dimensional space.
+4.  **Cluster Characteristics:**
+    -   Two clusters were identified: Cluster 1 and Cluster 2.
+    -   Cluster summaries were computed, providing average values for each feature within each cluster.
+    -   Cluster 1: Customers in this cluster have a relatively lower average income and make fewer purchases both online and in-store, but they visit webpages frequently.
+    -   Cluster 2: Customers in this cluster have a higher average income and make more purchases both online and in-store, but they visit webpages less frequently.
+
+These findings offer insights into the distinct characteristics of customer segments, enabling targeted marketing strategies and personalized customer interactions to enhance customer satisfaction and loyalty.
+
+
+
+
+**Overall Summary:**
+The analysis aimed to segment customers based on various features to gain insights into distinct customer groups for targeted marketing strategies. The process involved feature selection, data scaling, determining the optimal number of clusters (k), clustering, visualization, and summarizing cluster characteristics.
+
+**Findings:**
+1. **Feature Selection and Scaling:**
+   - Six features were selected for clustering, including `Year_Birth`, `Income`, `Recency`, `NumWebPurchases`, `NumStorePurchases`, and `NumWebVisitsMonth`.
+   - Data scaling ensured all features contributed equally to clustering.
+
+2. **Determining Optimal Number of Clusters:**
+   - The Elbow Method suggested k=2 as the optimal number of clusters.
+
+3. **Clustering and Visualization:**
+   - K-means clustering was performed with k=2.
+   - Principal Component Analysis (PCA) was used for dimensionality reduction, and a scatter plot visually represented the clusters.
+
+4. **Cluster Characteristics:**
+   - Two clusters were identified: Cluster 1 and Cluster 2.
+   - Cluster summaries revealed distinct characteristics:
+     - Cluster 1: Lower average income, fewer purchases, frequent webpage visits.
+     - Cluster 2: Higher average income, more purchases, less frequent webpage visits.
+
+**Conclusion:**
+
+The clustering analysis successfully segmented customers into two distinct groups based on their behaviors and characteristics. This segmentation provides valuable insights for targeted marketing strategies, allowing businesses to tailor their approaches to meet the specific needs and preferences of each customer segment.
+
+**Recommendation:**
+
+1. **Targeted Marketing:** 
+Develop tailored marketing campaigns for each cluster to address their unique needs and preferences.
+-
+2. **Customer Engagement:** 
+Implement personalized customer engagement strategies to enhance customer satisfaction and loyalty.
+-
+3. **Product Offering:** 
+Adjust product offerings and pricing strategies to align with the preferences of each cluster.
+-
+
+
+
+**Limitations:**
+
+1. **Limited Features:** 
+The analysis only considered a subset of features, potentially overlooking other important factors influencing customer behavior.
+-
+2. **Assumed Clustering:** 
+The chosen clustering algorithm (k-means) assumes spherical clusters and may not perform well with complex or non-linearly separable data.
+-
+3. **Interpretation Challenges:** 
+While clusters were identified, interpreting the characteristics of each cluster may require further analysis and domain expertise.
+
+
+Addressing these limitations and periodically reassessing clustering results can further refine customer segmentation strategies and improve their effectiveness over time.
