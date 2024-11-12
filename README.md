@@ -1,2 +1,2 @@
 # Customer-Churn
-Customer Churn at Bangor-Telco Market Campaign
+Customer Churn at Ions-Telco Market Campaign
