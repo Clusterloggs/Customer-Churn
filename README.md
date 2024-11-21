@@ -1,5 +1,5 @@
 
-# Customer Churn Analysis at Bangor-Telco Marketing Campaign
+# Customer Churn Analysis at Telco Marketing Campaign
 
 ### Author: Azeez Akintonde  
 **Date:** May 28, 2024
