@@ -6,7 +6,7 @@
 
 ## Overview
 
-This project aims to analyze customer churn in the Bangor-Telco marketing campaign by employing machine learning and data science techniques. Through dataset examination, preprocessing, and predictive modeling, the analysis identifies factors contributing to churn, providing actionable insights to potentially mitigate it.
+This project aims to analyze customer churn in the Telco marketing campaign by employing machine learning and data science techniques. Through dataset examination, preprocessing, and predictive modeling, the analysis identifies factors contributing to churn, providing actionable insights to potentially mitigate it.
 
 ## Table of Contents
 
